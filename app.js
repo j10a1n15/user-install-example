@@ -3,10 +3,8 @@ import express from 'express';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
 import {
   VerifyDiscordRequest,
-  getServerLeaderboard,
-  createPlayerEmbed,
+  getSkyHanniPatterns,
 } from './utils.js';
-import { getFakeProfile, getWikiItem } from './game.js';
 
 // Create an express app
 const app = express();
@@ -39,104 +37,28 @@ app.post('/interactions', async function (req, res) {
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data;
 
-    // "leaderboard" command
-    if (name === 'leaderboard') {
-      // Send a message into the channel where command was triggered from
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: await getServerLeaderboard(req.body.guild.id),
-        },
-      });
-    }
-    // "profile" command
-    if (name === 'profile') {
-      const profile = getFakeProfile(0);
-      const profileEmbed = createPlayerEmbed(profile);
+    // "pattern" command
+    if (name === 'pattern') {
+      const option = data.options[0];
+      const patterns = await getSkyHanniPatterns(option.value);
 
-      // Use interaction context that the interaction was triggered from
-      const interactionContext = req.body.context;
-
-      // Construct `data` for our interaction response. The profile embed will be included regardless of interaction context
-      let profilePayloadData = {
-        embeds: [profileEmbed],
-      };
-
-      // If profile isn't run in a DM with the app, we'll make the response ephemeral and add a share button
-      if (interactionContext !== 1) {
-        // Make message ephemeral
-        profilePayloadData['flags'] = 64;
-        // Add button to components
-        profilePayloadData['components'] = [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                label: 'Share Profile',
-                custom_id: 'share_profile',
-                style: 2,
-              },
-            ],
-          },
-        ];
+      // Building a visually appealing response
+      let content = "Here are the patterns matching your query:\n\n";
+      for (const [key, value] of patterns.entries()) {
+        content += `**Pattern Key:** ${key}\n`;
+        content += "```regex\n";
+        content += value + "\n";
+        content += "```\n\n";
       }
 
-      // Send response
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: profilePayloadData,
-      });
-    }
-    // "link" command
-    if (name === 'link') {
       // Send a message into the channel where command was triggered from
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content:
-            'Authorize your Quests of Wumpus account with your Discord profile.',
-          components: [
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  label: 'Link Account',
-                  style: 5,
-                  // If you were building this functionality, you could guide the user through authorizing via your game/site
-                  url: 'https://discord.com/developers/docs/intro',
-                },
-              ],
-            },
-          ],
+          content: content,
         },
       });
     }
-    // "wiki" command
-    if (name === 'wiki') {
-      const option = data.options[0];
-      const selectedItem = getWikiItem(option.value);
-      // Send a message into the channel where command was triggered from
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: `${selectedItem.emoji} **${selectedItem.name}**: ${selectedItem.description}`,
-        },
-      });
-    }
-  }
-
-  // handle button interaction
-  if (type === InteractionType.MESSAGE_COMPONENT) {
-    const profile = getFakeProfile(0);
-    const profileEmbed = createPlayerEmbed(profile);
-    return res.send({
-      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-      data: {
-        embeds: [profileEmbed],
-      },
-    });
   }
 });
 

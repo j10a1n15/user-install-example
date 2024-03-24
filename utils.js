@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import fetch from 'node-fetch';
 import { verifyKey } from 'discord-interactions';
-import { getFakeUsername } from './game.js';
 
 export function VerifyDiscordRequest(clientKey) {
   return function (req, res, buf, encoding) {
@@ -57,14 +56,6 @@ export function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export async function getServerLeaderboard(guildId) {
-  let members = await getServerMembers(guildId, 3);
-  members = members
-    .map((id, i) => `${i + 1}. <@${id}> (\`${getFakeUsername(i)}\`)`)
-    .join('\n');
-  return `## :trophy: Server Leaderboard\n*This is a very fake leaderboard that just pulls random server members. Pretend it's pulling real game data and it's much more fun* :zany_face:\n\n### This week\n${members}\n\n### All time\n${members}`;
-}
-
 async function getServerMembers(guildId, limit) {
   const endpoint = `guilds/${guildId}/members?limit=${limit}`;
 
@@ -77,40 +68,48 @@ async function getServerMembers(guildId, limit) {
   }
 }
 
-export function createPlayerEmbed(profile) {
-  return {
-    type: 'rich',
-    title: `${profile.username} Profile (lvl ${profile.stats.level})`,
-    color: 0x968b9f,
-    fields: [
-      {
-        name: `Account created`,
-        value: profile.createdAt,
-        inline: true,
-      },
-      {
-        name: `Last played`,
-        value: profile.lastPlayed,
-        inline: true,
-      },
-      {
-        name: `Global rank`,
-        value: profile.stats.rank,
-        inline: true,
-      },
-      {
-        name: `Combat stats`,
-        value: `:smiley: ${profile.stats.wins} wins / :pensive: ${profile.stats.losses} losses`,
-      },
-      {
-        name: `Realms explored`,
-        value: profile.stats.realms,
-        inline: true,
-      },
-    ],
-    url: 'https://discord.com/developers/docs/intro',
-    thumbnail: {
-      url: 'https://raw.githubusercontent.com/shaydewael/example-app/main/assets/fake-icon.png',
-    },
-  };
+/**
+ * Get SkyHanni patterns from the SkyHanni repository
+ * @param {string} key - The key of the pattern to get
+ * @returns {Promise<Map<key, pattern>} - A map of patterns
+ * 
+ * 
+  {
+    'data.hypixeldata.serverid.tablist' => ' Server: §r§8(?<serverid>\\S+)',
+    'misc.compacttablist.advanced.level' => '.*\\[(?<level>.*)] §r(?<name>.*)',
+    'features.gui.customscoreboard.tablist.gems' => '^\\s*Gems: §a(?<gems>\\d*,?(\\.\\d+)?[a-zA-Z]?)$',
+    'features.gui.customscoreboard.tablist.bank' => '^\\s*Bank: §6(?<bank>[\\w.,]+(?:§7 \\/ §6(?<coop>[\\w.,]+))?)$',
+    'features.gui.customscoreboard.tablist.mithrilpowder' => '^\\s*Mithril Powder: (?:§.)+(?<mithrilpowder>[\\d,\\.]+)$',
+  }
+ */
+export async function getSkyHanniPatterns(key) {
+  const patterns = await getSkyHanniPatternsRepo();
+  const filteredPatterns = new Map();
+  for (const [patternKey, patternValue] of Object.entries(patterns)) {
+    if (patternKey.includes(key)) {
+      filteredPatterns.set(patternKey, patternValue);
+    }
+  }
+  return filteredPatterns;
+}
+
+/**
+ * @returns {Promise<Map<key, pattern>} - A map of patterns
+ * 
+ * 
+ * Example of the JSON response:
+  {
+    'data.hypixeldata.serverid.scoreboard': '§7\\d+/\\d+/\\d+ §8(?<servertype>[mM])(?<serverid>\\S+)',
+    'data.hypixeldata.serverid.tablist': ' Server: §r§8(?<serverid>\\S+)',
+    'data.hypixeldata.lobbytype': '(?<lobbyType>.*lobby)\\d+',
+    'data.hypixeldata.playeramount': '^\\s*(?:§.)+Players (?:§.)+\\((?<amount>\\d+)\\)\\s*$',
+    'data.hypixeldata.playeramount.coop': '^\\s*(?:§.)*Coop (?:§.)*\\((?<amount>\\d+)\\)\\s*$',
+    'data.hypixeldata.playeramount.guesting': '^\\s*(?:§.)*Guests (?:§.)*\\((?<amount>\\d+)\\)\\s*$',
+  }
+ */
+async function getSkyHanniPatternsRepo() {
+  const url = "https://raw.githubusercontent.com/hannibal002/SkyHanni-REPO/main/constants/regexes.json";
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.regexes;
 }
